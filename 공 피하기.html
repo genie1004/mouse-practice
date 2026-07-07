@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>요리조리 공 피하기</title>
+    <style>
+        /* 💡 레이아웃을 중앙으로 정렬하기 위한 스타일 변경 */
+        body { 
+            background-color: #ffffff; 
+            font-family: 'Malgun Gothic', sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            user-select: none; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; /* 가로 중앙 정렬 */
+            justify-content: center; /* 세로 중앙 정렬 */
+            min-height: 100vh;
+        }
+        h1 { font-size: 2.5em; margin: 0 0 15px 0; font-weight: bold; }
+        #energy-container { display: flex; align-items: center; font-size: 1.8em; font-weight: bold; margin-bottom: 15px; }
+        #energy-bg { width: 300px; height: 20px; background-color: #eee; border-radius: 10px; margin-left: 10px; overflow: hidden; border: 1px solid #ccc; }
+        #energy-bar { width: 100%; height: 100%; background-color: #007bff; transition: width 0.1s linear; }
+        #game-container { position: relative; width: 700px; height: 500px; border: 2px solid #333; box-shadow: 5px 5px 15px rgba(0,0,0,0.2); }
+        canvas { display: block; cursor: crosshair; }
+    </style>
+</head>
+<body>
+
+    <h1>공 피하기</h1>
+    <div id="energy-container">
+        <span>에너지:</span>
+        <div id="energy-bg"><div id="energy-bar"></div></div>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="700" height="500"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const energyBar = document.getElementById('energy-bar');
+
+        let player = { x: 350, y: 250, targetX: 350, targetY: 250, radius: 12 };
+        let currentEnergy = 100;
+        let gameActive = true;
+        let obstacles = [];
+        let spawnInterval, bgChangeInterval;
+
+        const getRandomColor = () => `rgb(${Math.random()*200}, ${Math.random()*200}, ${Math.random()*200})`;
+
+        function init() {
+            canvas.style.backgroundColor = getRandomColor();
+            obstacles = [];
+            currentEnergy = 100;
+            energyBar.style.width = "100%";
+            gameActive = true;
+            clearInterval(spawnInterval);
+            clearInterval(bgChangeInterval);
+            for(let i=0; i<3; i++) spawnObstacle();
+            spawnInterval = setInterval(spawnObstacle, 2000);
+            bgChangeInterval = setInterval(() => { if(gameActive) canvas.style.backgroundColor = getRandomColor(); }, 3000);
+            update();
+        }
+
+        canvas.addEventListener('click', () => { if (!gameActive) init(); });
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            player.targetX = e.clientX - rect.left;
+            player.targetY = e.clientY - rect.top;
+        });
+
+        function spawnObstacle() {
+            let radius = (Math.random() < 0.1) ? (Math.random() * 15 + 25) : (Math.random() * 10 + 5);
+            let x, y, isOverlapping;
+            let attempts = 0;
+
+            do {
+                isOverlapping = false;
+                const edge = Math.floor(Math.random() * 4);
+                if (edge === 0) { x = Math.random() * canvas.width; y = -40; }
+                else if (edge === 1) { x = Math.random() * canvas.width; y = canvas.height + 40; }
+                else if (edge === 2) { x = -40; y = Math.random() * canvas.height; }
+                else { x = canvas.width + 40; y = Math.random() * canvas.height; }
+
+                for (let obs of obstacles) {
+                    if (Math.hypot(obs.x - x, obs.y - y) < obs.radius + radius + 10) {
+                        isOverlapping = true; break;
+                    }
+                }
+                attempts++;
+            } while (isOverlapping && attempts < 10);
+
+            obstacles.push({ 
+                x: x, y: y, 
+                radius: radius, 
+                color: getRandomColor(), 
+                speed: Math.random() * 2.0 + 1.0 
+            });
+        }
+
+        function update() {
+            if (!gameActive) return;
+
+            player.x += (player.targetX - player.x) * 0.15;
+            player.y += (player.targetY - player.y) * 0.15;
+
+            for (let i = 0; i < obstacles.length; i++) {
+                for (let j = i + 1; j < obstacles.length; j++) {
+                    const obs1 = obstacles[i], obs2 = obstacles[j];
+                    const dx = obs1.x - obs2.x, dy = obs1.y - obs2.y;
+                    const distance = Math.hypot(dx, dy);
+                    const minDistance = obs1.radius + obs2.radius;
+                    if (distance < minDistance) {
+                        const angle = Math.atan2(dy, dx);
+                        const overlap = minDistance - distance;
+                        const pushX = Math.cos(angle) * (overlap / 2);
+                        const pushY = Math.sin(angle) * (overlap / 2);
+                        obs1.x += pushX; obs1.y += pushY;
+                        obs2.x -= pushX; obs2.y -= pushY;
+                    }
+                }
+            }
+
+            obstacles.forEach((obs) => {
+                const dx = player.x - obs.x;
+                const dy = player.y - obs.y;
+                const distance = Math.hypot(dx, dy);
+                
+                if (distance > 0) {
+                    obs.x += (dx / distance) * obs.speed;
+                    obs.y += (dy / distance) * obs.speed;
+                }
+
+                if (distance < obs.radius + 15) {
+                    currentEnergy -= 0.5;
+                    energyBar.style.width = Math.max(0, currentEnergy) + "%";
+                    if (currentEnergy <= 0) {
+                        gameActive = false;
+                        clearInterval(spawnInterval); clearInterval(bgChangeInterval);
+                        drawGameOver();
+                    }
+                }
+            });
+
+            if (gameActive) {
+                draw();
+                requestAnimationFrame(update);
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            obstacles.forEach(obs => {
+                ctx.fillStyle = obs.color; ctx.beginPath(); ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2); ctx.fill();
+            });
+            const px = player.x, py = player.y;
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(px - 10, py - 10, 20, 20);
+            ctx.strokeRect(px - 10, py - 10, 20, 20);
+            ctx.fillStyle = '#000'; ctx.fillRect(px - 6, py - 6, 4, 4); ctx.fillRect(px + 2, py - 6, 4, 4);
+            ctx.fillStyle = '#ffb6c1'; ctx.fillRect(px - 8, py + 2, 4, 2); ctx.fillRect(px + 4, py + 2, 4, 2);
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "white"; ctx.font = "30px Malgun Gothic"; ctx.textAlign = "center";
+            ctx.fillText("종료! 클릭하면 다시 시작합니다!", canvas.width/2, canvas.height/2);
+        }
+
+        init();
+    </script>
+</body>
+</html>

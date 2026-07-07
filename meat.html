@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>지글지글 고기 굽기</title>
+    <style>
+        body {
+            background-color: #fff3e0;
+            text-align: center;
+            font-family: 'Malgun Gothic', sans-serif;
+            margin-top: 30px;
+            user-select: none;
+        }
+        h1 { color: #d84315; font-size: 3em; margin-bottom: 10px; }
+        .score-board { font-size: 2em; font-weight: bold; color: #bf360c; margin-bottom: 30px; }
+        
+        .game-area {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 60px;
+            margin-top: 20px;
+        }
+
+        .plate {
+            background-color: #ffffff;
+            border: 6px solid #cfd8dc;
+            border-radius: 50%;
+            width: 250px;
+            height: 250px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1), inset 0 -10px 20px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        
+        .plate p {
+            margin: 0;
+            font-weight: bold;
+            color: #546e7a;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            line-height: 1.4;
+        }
+
+        .raw-meat {
+            font-size: 90px;
+            cursor: grab;
+            user-select: none;
+            transition: transform 0.1s;
+            filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.3));
+        }
+        .raw-meat:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+        }
+
+        .round-grill {
+            background-color: #1a1a1a;
+            border: 15px solid #333;
+            border-radius: 50%;
+            width: 450px;
+            height: 450px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.4), inset 0 0 40px rgba(0,0,0,0.9);
+            position: relative;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at 30% 30%, #d84315 0%, transparent 50%),
+                radial-gradient(circle at 70% 70%, #bf360c 0%, transparent 50%),
+                radial-gradient(circle at 70% 30%, #ff5722 0%, transparent 60%),
+                radial-gradient(circle at 30% 70%, #ff3d00 0%, transparent 60%);
+        }
+
+        .round-grill::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-image: 
+                repeating-linear-gradient(0deg, transparent, transparent 38px, #555 38px, #555 42px),
+                repeating-linear-gradient(90deg, transparent, transparent 38px, #555 38px, #555 42px);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* --- 불판 위 고기 상태별 CSS --- */
+        .meat-piece {
+            position: absolute;
+            font-size: 70px;
+            user-select: none;
+            z-index: 2;
+            cursor: pointer; 
+            /* 기본 위치 설정 (JS에서 좌표 지정 후 중앙 정렬용) */
+            transform: translate(-50%, -50%) scaleX(1); 
+        }
+
+        /* [상태 1] 굽기 1단계 (가만히 기다리는 중) */
+        .meat-piece[data-state="cooking-1"] {
+            filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+        }
+
+        /* [상태 2] 뒤집을 타이밍! (경고 애니메이션) */
+        .meat-piece[data-state="ready-to-flip"] {
+            filter: drop-shadow(0 0 15px rgba(255, 150, 0, 1));
+            animation: pulseWarning 0.5s infinite alternate;
+        }
+
+        /* [상태 3] 굽기 2단계 (뒤집힌 상태로 기다리는 중) */
+        .meat-piece[data-state="cooking-2"] {
+            transform: translate(-50%, -50%) scaleX(-1); /* 좌우 반전 */
+            filter: brightness(80%) drop-shadow(0 0 5px rgba(255,100,0,0.5));
+        }
+
+        /* [상태 4] 다 익음! (바운스) */
+        .meat-piece[data-state="cooked"] {
+            transform: translate(-50%, -50%) scaleX(-1);
+            animation: bounce 0.4s infinite alternate;
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8)); 
+        }
+
+        /* [상태 5] 타버림 */
+        .meat-piece[data-state="burnt"] {
+            filter: grayscale(100%) brightness(15%) drop-shadow(0 0 5px rgba(0,0,0,0.5)) !important;
+            animation: tremble 0.1s infinite !important; 
+        }
+
+        /* 너무 일찍 클릭했을 때 거부하는 흔들림 */
+        .early-click {
+            animation: shakeNo 0.3s !important;
+        }
+
+        /* 연기 효과 */
+        .meat-piece[data-state="cooking-1"]::after,
+        .meat-piece[data-state="cooking-2"]::after,
+        .meat-piece[data-state="ready-to-flip"]::after {
+            content: '💨';
+            position: absolute;
+            left: 10px; top: -10px;
+            font-size: 35px;
+            animation: smokeRise 1.5s infinite ease-out;
+            pointer-events: none;
+            filter: grayscale(100%) opacity(0.6);
+        }
+
+        .meat-piece[data-state="burnt"]::after {
+            content: '💨';
+            position: absolute;
+            left: 10px; top: -10px;
+            font-size: 40px;
+            animation: smokeRise 0.8s infinite ease-out; 
+            pointer-events: none;
+            filter: grayscale(100%) brightness(0%) opacity(0.7); 
+        }
+
+        /* 애니메이션 모음 */
+        @keyframes smokeRise {
+            0% { transform: translateY(0px) scale(0.8); opacity: 0.8; }
+            100% { transform: translateY(-70px) scale(1.6); opacity: 0; }
+        }
+
+        @keyframes pulseWarning {
+            from { transform: translate(-50%, -50%) scale(1); }
+            to { transform: translate(-50%, -50%) scale(1.15); }
+        }
+
+        @keyframes bounce {
+            from { transform: translate(-50%, -50%) scaleX(-1); }
+            to { transform: translate(-50%, calc(-50% - 15px)) scaleX(-1); }
+        }
+
+        @keyframes tremble {
+            0% { transform: translate(calc(-50% + 1px), calc(-50% + 1px)) rotate(0deg); }
+            100% { transform: translate(calc(-50% - 1px), calc(-50% - 1px)) rotate(1deg); }
+        }
+
+        @keyframes shakeNo {
+            0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+            25% { transform: translate(-50%, -50%) translateX(-15px); }
+            75% { transform: translate(-50%, -50%) translateX(15px); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🥩 지글지글 랜덤 고기 굽기 🥩</h1>
+    <div class="score-board">맛있게 먹은 고기: <span id="score">0</span>점</div>
+
+    <div class="game-area">
+        <div class="plate">
+            <p>1. 빈 곳에 올리세요.<br>2. <b>빛날 때 클릭해서 뒤집기!</b><br>3. <b>다 익으면 클릭해서 먹기!</b></p>
+            <div class="raw-meat" draggable="true" id="meat-source">🥩</div>
+        </div>
+
+        <div class="round-grill" id="grill"></div>
+    </div>
+
+    <script>
+        const meatSource = document.getElementById('meat-source');
+        const grill = document.getElementById('grill');
+        const scoreDisplay = document.getElementById('score');
+        let score = 0;
+
+        // 지정된 범위 안에서 랜덤한 초(밀리초)를 만들어내는 함수
+        function randomTime(min, max) {
+            return Math.floor(Math.random() * (max - min) + min);
+        }
+
+        meatSource.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', 'meat');
+        });
+
+        grill.addEventListener('dragover', (e) => {
+            e.preventDefault(); 
+        });
+
+        grill.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const data = e.dataTransfer.getData('text/plain');
+            
+            if (data === 'meat') {
+                const rect = grill.getBoundingClientRect();
+                const dropX = e.clientX - rect.left;
+                const dropY = e.clientY - rect.top;
+
+                const newMeat = document.createElement('div');
+                newMeat.className = 'meat-piece';
+                newMeat.textContent = '🥩';
+                
+                newMeat.style.left = dropX + 'px';
+                newMeat.style.top = dropY + 'px';
+                grill.appendChild(newMeat); 
+
+                // 고기 개별 타이머 변수
+                let waitTimer = null;
+                let burnTimer = null;
+
+                // 고기가 타버리는 함수
+                function burnMeat() {
+                    if (document.body.contains(newMeat)) {
+                        newMeat.setAttribute('data-state', 'burnt');
+                        newMeat.textContent = '🪨'; 
+                    }
+                }
+
+                // [1단계] 처음 불판에 올렸을 때
+                function startPhase1() {
+                    newMeat.setAttribute('data-state', 'cooking-1');
+                    
+                    // 2초 ~ 4.5초 사이의 랜덤한 시간 동안 구워짐
+                    const timeToFlip = randomTime(2000, 4500); 
+                    
+                    waitTimer = setTimeout(() => {
+                        // 시간이 다 되면 뒤집으라고 빛남
+                        newMeat.setAttribute('data-state', 'ready-to-flip');
+                        
+                        // 빛난 후 3초 안에 안 뒤집으면 타버림
+                        burnTimer = setTimeout(burnMeat, 3000); 
+                    }, timeToFlip);
+                }
+
+                // [2단계] 한 번 뒤집었을 때
+                function startPhase2() {
+                    newMeat.setAttribute('data-state', 'cooking-2');
+                    
+                    // 1.5초 ~ 3.5초 사이의 랜덤한 시간 동안 마저 구워짐
+                    const timeToCook = randomTime(1500, 3500);
+                    
+                    waitTimer = setTimeout(() => {
+                        // 시간이 다 되면 다 익은 고기로 변신
+                        newMeat.setAttribute('data-state', 'cooked');
+                        newMeat.textContent = '🍖'; 
+                        
+                        // 다 익은 후 3초 안에 안 먹으면 타버림
+                        burnTimer = setTimeout(burnMeat, 3000);
+                    }, timeToCook);
+                }
+
+                // 게임 시작
+                startPhase1();
+
+                // 🖱️ 클릭 이벤트 처리
+                newMeat.addEventListener('click', () => {
+                    const currentState = newMeat.getAttribute('data-state');
+
+                    if (currentState === 'ready-to-flip') {
+                        // 정확한 타이밍에 뒤집기 성공!
+                        clearTimeout(burnTimer);
+                        startPhase2(); 
+                        
+                    } else if (currentState === 'cooked') {
+                        // 정확한 타이밍에 먹기 성공!
+                        clearTimeout(burnTimer);
+                        score += 1;
+                        scoreDisplay.textContent = score;
+                        newMeat.remove(); 
+                        
+                    } else if (currentState === 'burnt') {
+                        // 탄 고기 치우기
+                        newMeat.remove();
+
+                    } else if (currentState === 'cooking-1' || currentState === 'cooking-2') {
+                        // ❌ 아직 덜 익었는데 막 눌렀을 때 (광클 방지)
+                        // 고기가 좌우로 흔들리며 안 된다는 시각적 피드백 제공
+                        newMeat.classList.add('early-click');
+                        setTimeout(() => {
+                            newMeat.classList.remove('early-click');
+                        }, 300);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
