@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>스피드 클릭: 아이템 추가!</title>
+    <style>
+        body { text-align: center; font-family: 'Arial', sans-serif; background: #f4f4f9; }
+        #game-area { width: 600px; height: 400px; border: 3px solid #333; margin: 10px auto; position: relative; background: white; overflow: hidden; cursor: crosshair; }
+        .ball { border-radius: 50%; position: absolute; cursor: pointer; transition: transform 0.1s; }
+        .ball:active { transform: scale(0.9); }
+        .item { border-radius: 5px; position: absolute; cursor: pointer; background: gold !important; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 12px; border: 2px solid #b8860b; }
+        #info { font-size: 20px; font-weight: bold; margin-top: 10px; display: flex; justify-content: center; gap: 20px;}
+        .highlight { color: #007bff; } /* 파란색 강조 */
+        #level-msg { font-size: 1.5em; font-weight: bold; height: 40px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>스피드 클릭 (Level <span id="level-num">1</span>)</h1>
+    <!-- 💡 안내 문구 영역 -->
+    <div id="level-msg" style="color: #333;"></div>
+    <div id="info">
+        <div>남은 공: <span id="remaining-balls" class="highlight">0</span>개</div>
+        <div>남은 시간: <span id="time" class="highlight">30</span>초</div>
+    </div>
+    <div id="game-area"></div>
+
+    <script>
+        let timeLeft = 30, level = 1, ballSize = 50, ballsToClick = 10;
+        let ballsLeft = 0, gameActive = false, timer, spawnInterval, itemSpawned = false;
+        
+        const gameArea = document.getElementById('game-area');
+        const remainingDisplay = document.getElementById('remaining-balls');
+        const timeDisplay = document.getElementById('time');
+        const msgDisplay = document.getElementById('level-msg');
+
+        function startLevel() {
+            gameActive = true;
+            itemSpawned = false; 
+            ballsLeft = ballsToClick + (level * 2);
+            timeLeft = 30;
+            ballSize = Math.max(20, 50 - (level * 4));
+
+            remainingDisplay.innerText = ballsLeft;
+            timeDisplay.innerText = timeLeft;
+            
+            // 💡 [수정] 아이들에게 파란 공을 클릭하라고 명확히 안내
+            msgDisplay.innerHTML = `Level ${level}! <span class="highlight">파란 공</span>만 클릭하세요!`;
+            
+            document.getElementById('level-num').innerText = level;
+            gameArea.innerHTML = '';
+            startTimers();
+        }
+
+        // ... (이하 로직은 동일)
+        function checkOverlap(x, y, size) {
+            const elements = gameArea.querySelectorAll('.ball, .item');
+            for (let el of elements) {
+                const bX = parseFloat(el.style.left);
+                const bY = parseFloat(el.style.top);
+                const bSize = parseFloat(el.style.width);
+                const distance = Math.sqrt((x - bX)**2 + (y - bY)**2);
+                if (distance < (size + bSize) / 2) return true;
+            }
+            return false;
+        }
+
+        function spawnObject() {
+            if (!gameActive) return;
+            if (level >= 5 && !itemSpawned && Math.random() < 0.15) {
+                createItem();
+            } else {
+                createBall();
+            }
+        }
+
+        function createItem() {
+            itemSpawned = true;
+            const item = document.createElement('div');
+            item.className = 'item';
+            item.style.width = '40px'; item.style.height = '40px';
+            item.style.left = Math.random() * 560 + 'px';
+            item.style.top = Math.random() * 360 + 'px';
+            item.innerText = "+5s";
+            item.onclick = () => {
+                timeLeft += 5;
+                timeDisplay.innerText = timeLeft;
+                item.remove();
+            };
+            gameArea.appendChild(item);
+            setTimeout(() => { if(gameArea.contains(item)) item.remove(); }, 2000);
+        }
+
+        function createBall() {
+            let x, y, attempts = 0;
+            do {
+                x = Math.random() * (560 - ballSize);
+                y = Math.random() * (360 - ballSize);
+                attempts++;
+            } while (checkOverlap(x, y, ballSize) && attempts < 10);
+            if (attempts >= 10) return;
+
+            const mustBeBlue = (timeLeft <= ballsLeft + 2);
+            const isBlue = mustBeBlue ? true : (Math.random() > 0.4); 
+
+            const ball = document.createElement('div');
+            ball.className = 'ball';
+            ball.style.width = ballSize + 'px';
+            ball.style.height = ballSize + 'px';
+            ball.style.backgroundColor = isBlue ? '#007bff' : '#dc3545';
+            ball.style.left = x + 'px';
+            ball.style.top = y + 'px';
+            
+            ball.onclick = () => {
+                if (!gameActive) return;
+                if (isBlue) {
+                    ballsLeft--;
+                    remainingDisplay.innerText = ballsLeft;
+                    ball.remove();
+                    if (ballsLeft <= 0) endGame(true);
+                } else {
+                    timeLeft = Math.max(0, timeLeft - 2);
+                    timeDisplay.innerText = timeLeft;
+                }
+            };
+            gameArea.appendChild(ball);
+            setTimeout(() => { if(gameArea.contains(ball)) ball.remove(); }, 1500);
+        }
+
+        function startTimers() {
+            if (timer) clearInterval(timer);
+            if (spawnInterval) clearInterval(spawnInterval);
+            spawnInterval = setInterval(spawnObject, Math.max(400, 800 - (level * 20))); 
+            timer = setInterval(() => {
+                timeLeft--;
+                timeDisplay.innerText = timeLeft;
+                if (timeLeft <= 0) endGame(false);
+            }, 1000);
+        }
+
+        function endGame(success) {
+            gameActive = false;
+            clearInterval(timer); clearInterval(spawnInterval);
+            gameArea.innerHTML = '';
+            if (success) {
+                msgDisplay.innerHTML = `<span style="color: blue;">Level ${level} 성공!</span> 다음 레벨로...`;
+                level++;
+                setTimeout(startLevel, 2000);
+            } else {
+                msgDisplay.style.color = 'red';
+                msgDisplay.innerText = `실패! 처음부터 다시.`;
+                level = 1;
+                setTimeout(startLevel, 3000);
+            }
+        }
+        startLevel();
+    </script>
+</body>
+</html>

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>동물 사진 퍼즐 맞추기</title>
+    <style>
+        body {
+            background-color: #f4f1ea;
+            text-align: center;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+        
+        /* 공통 버튼 스타일 */
+        button {
+            cursor: pointer;
+            font-family: inherit;
+            border: none;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+
+        /* =========================================
+           1. 시작(난이도 선택) 화면 스타일
+           ========================================= */
+        #intro-screen {
+            max-width: 900px;
+            margin: 0 auto;
+            padding-top: 50px;
+        }
+        
+        .title-box {
+            background-color: #ffb300;
+            border: 8px solid #ff8f00;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 50px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .title-box h1 {
+            color: #3e2723;
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+        }
+        .title-box p {
+            color: #4e342e;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .level-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+        }
+
+        .level-btn {
+            width: 200px;
+            height: 200px;
+            border-radius: 30px;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 8px solid;
+        }
+
+        /* 캡처해주신 화면의 색상 참고 */
+        .btn-5 { background-color: #f8bbd0; border-color: #c2185b; }
+        .btn-10 { background-color: #ffe082; border-color: #f57f17; }
+        .btn-15 { background-color: #b2ebf2; border-color: #0097a7; }
+
+        /* =========================================
+           2. 퍼즐 게임 화면 스타일
+           ========================================= */
+        #game-screen {
+            display: none; /* 처음에는 숨겨둠 */
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-btn {
+            background-color: #795548;
+            color: white;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        /* 퍼즐 조각들이 흩어져 있는 대기 장소 */
+        #pieces-area {
+            background-color: #ffffff;
+            border: 5px dashed #ccc;
+            border-radius: 15px;
+            min-height: 180px;
+            padding: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.05);
+        }
+
+        /* 퍼즐을 맞출 빈 판 (배경 사진이 연하게 보임) */
+        #puzzle-board {
+            width: 600px;
+            height: 300px;
+            margin: 0 auto;
+            border: 8px solid #5d4037;
+            background-color: #fff;
+            display: grid; /* 자바스크립트에서 비율 지정 */
+            position: relative;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+        }
+
+        /* 퍼즐판 뒤에 연하게 깔리는 원본 힌트 이미지 */
+        #hint-image {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            opacity: 0.2; /* 투명도 조절 (0.2 = 20% 보임) */
+            pointer-events: none;
+        }
+
+        /* 퍼즐판의 빈 칸 */
+        .slot {
+            border: 1px dashed rgba(0,0,0,0.2);
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* 드래그할 퍼즐 조각 */
+        .piece {
+            box-sizing: border-box;
+            cursor: grab;
+            border: 1px solid white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+        }
+        .piece:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        /* 딱 맞췄을 때 효과 */
+        .piece.matched {
+            border: none;
+            box-shadow: none;
+            cursor: default;
+        }
+
+        /* 성공 축하 메시지 */
+        #celebration {
+            display: none;
+            font-size: 3em;
+            color: #d32f2f;
+            font-weight: bold;
+            margin-top: 20px;
+            animation: bounce 0.5s infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-15px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <div class="title-box">
+            <h1>동물의 사진을 맞추는 퍼즐놀이를 합시다.</h1>
+            <p>몇 조각 퍼즐을 하고 싶은지 정하세요.</p>
+        </div>
+        
+        <div class="level-buttons">
+            <button class="level-btn btn-5" onclick="startGame(5)">5조각</button>
+            <button class="level-btn btn-10" onclick="startGame(10)">10조각</button>
+            <button class="level-btn btn-15" onclick="startGame(15)">15조각</button>
+        </div>
+    </div>
+
+    <div id="game-screen">
+        <div class="header">
+            <button class="back-btn" onclick="goBack()">🔙 처음으로 돌아가기</button>
+            <h2 style="color: #5d4037; margin: 0;" id="game-title">퍼즐 맞추기</h2>
+            <div style="width: 150px;"></div> </div>
+
+        <div id="pieces-area"></div>
+
+        <div id="puzzle-board">
+            <img id="hint-image" src="" alt="힌트">
+        </div>
+
+        <div id="celebration">🎉 와아! 그림을 완성했어요! 🎉</div>
+    </div>
+
+    <script>
+        // 💡 [수정 포인트] 여기에 원하는 사진의 웹 주소를 넣으세요!
+        // 아이들이 좋아하는 동물, 캐릭터, 혹은 유치원 전경 사진 등을 넣어도 좋습니다.
+        const imageUrl = 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&h=300&q=80';
+        
+        const introScreen = document.getElementById('intro-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const piecesArea = document.getElementById('pieces-area');
+        const puzzleBoard = document.getElementById('puzzle-board');
+        const hintImage = document.getElementById('hint-image');
+        const celebration = document.getElementById('celebration');
+        const gameTitle = document.getElementById('game-title');
+
+        let matchedCount = 0;
+        let totalPieces = 0;
+
+        // 배열 섞기 함수
+        function shuffle(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
+
+        // 처음 화면으로 돌아가기
+        function goBack() {
+            introScreen.style.display = 'block';
+            gameScreen.style.display = 'none';
+            celebration.style.display = 'none';
+        }
+
+        // 난이도 선택 후 게임 시작!
+        function startGame(pieces) {
+            introScreen.style.display = 'none';
+            gameScreen.style.display = 'block';
+            celebration.style.display = 'none';
+            matchedCount = 0;
+            totalPieces = pieces;
+            gameTitle.textContent = `${pieces}조각 퍼즐 맞추기`;
+            
+            // 기존 조각들 지우기
+            piecesArea.innerHTML = '';
+            
+            // 보드판 안의 빈 칸(slot)들 지우기 (힌트 이미지는 제외)
+            const slots = puzzleBoard.querySelectorAll('.slot');
+            slots.forEach(slot => slot.remove());
+
+            hintImage.src = imageUrl;
+
+            // 전체 퍼즐판 크기 (CSS와 동일해야 함)
+            const boardWidth = 600;
+            const boardHeight = 300;
+            
+            // 조각 수에 따른 가로/세로 칸 수 계산
+            let rows, cols;
+            if (pieces === 5) {
+                rows = 1; cols = 5; // 1줄 x 5칸
+            } else if (pieces === 10) {
+                rows = 2; cols = 5; // 2줄 x 5칸
+            } else if (pieces === 15) {
+                rows = 3; cols = 5; // 3줄 x 5칸
+            }
+
+            // CSS Grid 설정으로 퍼즐판 등분하기
+            puzzleBoard.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            puzzleBoard.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+
+            const pieceWidth = boardWidth / cols;
+            const pieceHeight = boardHeight / rows;
+
+            let pieceElements = [];
+
+            // 1. 퍼즐판 빈 칸(Slot) 만들기 & 조각(Piece) 만들기
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const id = `piece-${r}-${c}`;
+
+                    // --- 빈 칸(Slot) 생성 ---
+                    const slot = document.createElement('div');
+                    slot.className = 'slot';
+                    slot.dataset.id = id;
+
+                    // 빈 칸에 드롭 허용
+                    slot.addEventListener('dragover', (e) => e.preventDefault());
+                    
+                    slot.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        
+                        // 정답 확인!
+                        if (draggedId === slot.dataset.id) {
+                            const draggedPiece = document.getElementById(draggedId);
+                            
+                            // 쏙 넣기
+                            slot.appendChild(draggedPiece);
+                            
+                            // 상태 변경
+                            draggedPiece.classList.add('matched');
+                            draggedPiece.setAttribute('draggable', 'false');
+                            draggedPiece.style.left = '0';
+                            draggedPiece.style.top = '0';
+                            draggedPiece.style.boxShadow = 'none';
+                            
+                            matchedCount++;
+                            if (matchedCount === totalPieces) {
+                                setTimeout(() => {
+                                    celebration.style.display = 'block';
+                                }, 300);
+                            }
+                        }
+                    });
+                    
+                    puzzleBoard.appendChild(slot);
+
+                    // --- 드래그할 조각(Piece) 생성 ---
+                    const piece = document.createElement('div');
+                    piece.className = 'piece';
+                    piece.id = id;
+                    piece.setAttribute('draggable', 'true');
+                    
+                    // 조각의 크기와 배경 이미지 설정 (원본 사진을 쪼개는 마법)
+                    piece.style.width = `${pieceWidth}px`;
+                    piece.style.height = `${pieceHeight}px`;
+                    piece.style.backgroundImage = `url(${imageUrl})`;
+                    piece.style.backgroundSize = `${boardWidth}px ${boardHeight}px`;
+                    // 사진의 특정 부분만 보이도록 위치 이동
+                    piece.style.backgroundPosition = `-${c * pieceWidth}px -${r * pieceHeight}px`;
+
+                    piece.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', piece.id);
+                        setTimeout(() => piece.style.opacity = '0.7', 0);
+                    });
+                    piece.addEventListener('dragend', () => {
+                        piece.style.opacity = '1';
+                    });
+
+                    pieceElements.push(piece);
+                }
+            }
+
+            // 2. 만들어진 조각들을 무작위로 섞어서 대기 장소에 배치
+            shuffle(pieceElements).forEach(piece => {
+                piecesArea.appendChild(piece);
+            });
+        }
+    </script>
+</body>
+</html>

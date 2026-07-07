@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>날아라 새!</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #222; overflow: hidden; }
+        canvas { border: 4px solid #fff; box-shadow: 0 0 20px rgba(0,0,0,0.5); cursor: pointer; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let bird = { x: 50, y: 300, w: 34, h: 24, gravity: 0.2, velocity: 0, maxVelocity: 4, lift: -4.5 };
+        let pipes = [], scenery = [], score = 0, gameStarted = false, gameOver = false, frameCount = 0;
+        let dayPhase = 0; // 💡 [핵심] 시간 변화 변수 (0: 낮 -> 1: 밤)
+
+        function initScenery() {
+            scenery = [];
+            for(let i = 0; i < 8; i++) {
+                scenery.push({ x: i * 80 + Math.random() * 40, y: Math.random() * 100 + 20, type: 'cloud', size: Math.random() * 0.5 + 0.8, speed: 0.5 });
+                scenery.push({ x: i * 80 + Math.random() * 40, y: canvas.height - 70, type: 'tree', size: Math.random() * 0.5 + 0.8, speed: 2.5 });
+            }
+        }
+
+        canvas.addEventListener('click', () => {
+            if (!gameStarted) { gameStarted = true; initScenery(); }
+            else if (gameOver) { resetGame(); }
+            else { bird.velocity = bird.lift; }
+        });
+
+        function resetGame() {
+            bird.y = 300; bird.velocity = 0; pipes = []; score = 0; gameStarted = false; gameOver = false; frameCount = 0; dayPhase = 0;
+        }
+
+        function update() {
+            if (gameStarted && !gameOver) {
+                bird.velocity += bird.gravity;
+                if (bird.velocity > bird.maxVelocity) bird.velocity = bird.maxVelocity;
+                bird.y += bird.velocity;
+
+                // 💡 [핵심] 낮과 밤 서서히 변화 (0.001씩 단계적 변화)
+                dayPhase = Math.min(1, dayPhase + 0.0005); 
+
+                scenery.forEach(s => { s.x -= s.speed; if (s.x + 150 < 0) s.x = canvas.width; });
+
+                if (frameCount % 100 === 0) {
+                    let gap = 200;
+                    let top = Math.random() * (canvas.height - gap - 150) + 70;
+                    pipes.push({ x: canvas.width, top: top, w: 60, gap: gap, passed: false });
+                }
+
+                pipes.forEach((p, index) => {
+                    p.x -= 2.5;
+                    if (bird.x + bird.w > p.x && bird.x < p.x + p.w && (bird.y < p.top || bird.y + bird.h > p.top + p.gap)) gameOver = true;
+                    if (!p.passed && p.x + p.w < bird.x) { score++; p.passed = true; }
+                    if (p.x + p.w < 0) pipes.splice(index, 1);
+                });
+
+                if (bird.y + bird.h > canvas.height - 40 || bird.y < 0) gameOver = true;
+                frameCount++;
+            }
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        function draw() {
+            // 💡 [핵심] 낮(하늘색)에서 밤(어두운 남색)으로 배경색 보간
+            let r = 112 - (dayPhase * 90);
+            let g = 197 - (dayPhase * 150);
+            let b = 206 - (dayPhase * 150);
+            canvas.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 배경
+            ctx.fillStyle = (dayPhase > 0.5) ? "#FFFFFF" : "#FFF"; // 밤이 되면 구름색도 살짝 어둡게
+            scenery.forEach(s => {
+                if(s.type === 'cloud') {
+                    ctx.globalAlpha = 0.8 - (dayPhase * 0.4); // 밤이 되면 구름이 흐려짐
+                    ctx.beginPath(); ctx.arc(s.x, s.y, 20*s.size, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(s.x+25*s.size, s.y, 25*s.size, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.globalAlpha = 1 - (dayPhase * 0.6); // 밤이 되면 나무도 어둡게
+                    ctx.fillStyle = "#8B4513"; ctx.fillRect(s.x+15, s.y+10, 10, 30);
+                    ctx.fillStyle = "#228B22"; ctx.beginPath(); ctx.arc(s.x+20, s.y, 20*s.size, 0, Math.PI*2); ctx.fill();
+                }
+            });
+            ctx.globalAlpha = 1.0;
+
+            // 바닥
+            ctx.fillStyle = (dayPhase > 0.5) ? "#5D4037" : "#D2691E"; 
+            ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+
+            // 파이프
+            ctx.fillStyle = (dayPhase > 0.5) ? "#1B4D3E" : "#2E8B57";
+            pipes.forEach(p => {
+                ctx.fillRect(p.x, 0, p.w, p.top);
+                ctx.fillRect(p.x, p.top + p.gap, p.w, canvas.height - 40);
+            });
+
+            // 새
+            ctx.fillStyle = "#FFD700"; ctx.fillRect(bird.x, bird.y, bird.w, bird.h);
+            ctx.fillStyle = "#FF4500"; ctx.fillRect(bird.x+25, bird.y+10, 10, 8);
+            ctx.fillStyle = "#FFF"; ctx.fillRect(bird.x+20, bird.y+5, 8, 8);
+            ctx.fillStyle = "#000"; ctx.fillRect(bird.x+24, bird.y+7, 4, 4);
+
+            // UI
+            ctx.fillStyle = "white"; ctx.font = "30px Arial"; ctx.textAlign = "center"; ctx.fillText(score, canvas.width/2, 50);
+            if (!gameStarted) ctx.fillText("클릭하면 시작!", canvas.width/2, 300);
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = "white"; ctx.fillText("최종 점수: " + score, canvas.width/2, 300);
+            }
+        }
+        update();
+    </script>
+</body>
+</html>

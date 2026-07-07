@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>두더지 잡기 게임</title>
+    <style>
+        body {
+            background-color: #e0f7fa;
+            text-align: center;
+            font-family: 'Malgun Gothic', sans-serif;
+            margin-top: 50px;
+        }
+        h1 { color: #00796b; font-size: 3em; margin-bottom: 10px; }
+        .score-board { font-size: 2em; font-weight: bold; color: #d32f2f; margin-bottom: 30px; }
+        
+        /* 두더지 굴 격자 배경 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 150px); /* 3칸씩 배열 */
+            gap: 20px;
+            justify-content: center;
+        }
+        
+        /* 흙더미 (두더지 굴) 모양 */
+        .hole {
+            width: 150px;
+            height: 150px;
+            background-color: #8d6e63;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.5);
+            overflow: hidden; /* 굴 밖으로 나간 두더지는 안 보이게 숨김 */
+        }
+
+        /* 두더지 이모티콘 설정 */
+        .mole {
+            font-size: 80px;
+            cursor: pointer;
+            display: none; /* 기본은 숨김 상태 */
+            user-select: none; /* 드래그 방지 */
+        }
+
+        /* 두더지가 올라왔을 때의 상태 */
+        .mole.up {
+            display: block;
+            animation: popUp 0.2s ease-out;
+        }
+
+        @keyframes popUp {
+            0% { transform: translateY(100%); }
+            100% { transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🐹 마우스로 콕콕! 두더지 잡기 🐹</h1>
+    <div class="score-board">점수: <span id="score">0</span>점</div>
+
+    <div class="grid">
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+        <div class="hole"><div class="mole">🐹</div></div>
+    </div>
+
+    <script>
+        const moles = document.querySelectorAll('.mole');
+        const scoreDisplay = document.getElementById('score');
+        let lastHoleIndex = -1;
+        let score = 0;
+
+        // 아이들 수준에 맞춰 두더지가 머무는 시간 설정 (1초 ~ 1.5초)
+        function randomTime(min, max) {
+            return Math.round(Math.random() * (max - min) + min);
+        }
+
+        // 랜덤하게 두더지 굴 하나 선택
+        function randomMole() {
+            const index = Math.floor(Math.random() * moles.length);
+            // 방금 나온 굴에서 또 나오지 않게 처리
+            if (index === lastHoleIndex) {
+                return randomMole();
+            }
+            lastHoleIndex = index;
+            return moles[index];
+        }
+
+        // 두더지 튀어오르기 함수
+        function peep() {
+            const time = randomTime(1000, 1500); // 튀어나와 있는 시간
+            const mole = randomMole();
+            mole.classList.add('up');
+
+            setTimeout(() => {
+                mole.classList.remove('up');
+                peep(); // 계속 반복
+            }, time);
+        }
+
+        // 마우스로 두더지를 클릭했을 때 처리
+        function bonk(e) {
+            if (!e.isTrusted) return; // 클릭 매크로 방지
+            score++;
+            this.classList.remove('up'); // 맞으면 바로 쏙 들어감
+            scoreDisplay.textContent = score;
+        }
+
+        // 모든 두더지에게 클릭 이벤트 달아주기
+        moles.forEach(mole => mole.addEventListener('click', bonk));
+
+        // 게임 시작!
+        peep();
+    </script>
+</body>
+</html>

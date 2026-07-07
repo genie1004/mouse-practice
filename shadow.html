@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>동물 그림자 퍼즐</title>
+    <style>
+        body {
+            background-color: #fff9c4; 
+            text-align: center;
+            font-family: 'Malgun Gothic', sans-serif;
+            margin: 0;
+            padding: 20px;
+            user-select: none;
+        }
+
+        button {
+            cursor: pointer;
+            font-family: inherit;
+            border: none;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+
+        /* =========================================
+           1. 시작(난이도 선택) 화면 스타일
+           ========================================= */
+        #intro-screen {
+            max-width: 900px;
+            margin: 0 auto;
+            padding-top: 50px;
+        }
+        
+        .title-box {
+            background-color: #ffb300;
+            border: 8px solid #f57f17;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 50px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .title-box h1 {
+            color: #3e2723;
+            margin: 0 0 10px 0;
+            font-size: 2.5em;
+        }
+        .title-box p {
+            color: #4e342e;
+            font-size: 1.5em;
+            font-weight: bold;
+            margin: 0;
+        }
+
+        .level-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+        }
+
+        .level-btn {
+            width: 200px;
+            height: 200px;
+            border-radius: 30px;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+            box-shadow: 0 10px 15px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 8px solid;
+        }
+
+        .btn-5 { background-color: #f8bbd0; border-color: #c2185b; }
+        .btn-10 { background-color: #ffe082; border-color: #f57f17; }
+        .btn-15 { background-color: #b2ebf2; border-color: #0097a7; }
+
+        /* =========================================
+           2. 퍼즐 게임 화면 스타일
+           ========================================= */
+        #game-screen {
+            display: none; 
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .back-btn {
+            background-color: #795548;
+            color: white;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .game-board {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        /* 위쪽: 동물들이 대기하는 공간 (자동 줄바꿈 적용) */
+        .pieces-container {
+            display: flex;
+            flex-wrap: wrap; /* 15마리일 때 밑으로 내려가게 함 */
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 5px solid #ffcc80;
+            border-radius: 20px;
+            width: 100%;
+            min-height: 100px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        /* 아래쪽: 그림자가 있는 퍼즐 판 */
+        .slots-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            padding: 30px;
+            background-color: #8d6e63;
+            border: 8px solid #5d4037;
+            border-radius: 20px;
+            width: 100%;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.3), 0 15px 30px rgba(0,0,0,0.2);
+            box-sizing: border-box;
+        }
+
+        /* 동물 조각 크기 (15개가 들어가도 넉넉하도록 살짝 줄임) */
+        .animal-piece {
+            font-size: 60px;
+            cursor: grab;
+            transition: transform 0.2s;
+            filter: drop-shadow(3px 3px 5px rgba(0,0,0,0.3));
+        }
+        .animal-piece:active {
+            cursor: grabbing;
+            transform: scale(1.2);
+        }
+
+        /* 그림자 빈 칸 크기 */
+        .slot {
+            width: 80px;
+            height: 80px;
+            background-color: #efebe9;
+            border: 4px dashed #bcaaa4;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 5px 10px rgba(0,0,0,0.1);
+        }
+
+        .shadow-img {
+            font-size: 60px;
+            filter: grayscale(100%) brightness(0%) opacity(0.15); 
+            pointer-events: none;
+        }
+
+        .matched {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        .shake {
+            animation: shakeNo 0.4s;
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.5); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(255, 215, 0, 1)); }
+        }
+
+        @keyframes shakeNo {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px) rotate(-10deg); }
+            75% { transform: translateX(10px) rotate(10deg); }
+        }
+
+        /* 성공 축하 메시지 */
+        #celebration {
+            display: none;
+            font-size: 3em;
+            color: #ff5252;
+            font-weight: bold;
+            margin-top: 20px;
+            text-shadow: 2px 2px 0 #fff, -2px -2px 0 #fff, 2px -2px 0 #fff, -2px 2px 0 #fff;
+            animation: bounce 0.5s infinite alternate;
+        }
+        @keyframes bounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-15px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <div class="title-box">
+            <h1>그림자 쏙쏙 동물 퍼즐</h1>
+            <p>몇 마리의 동물을 찾아줄까요?</p>
+        </div>
+        
+        <div class="level-buttons">
+            <button class="level-btn btn-5" onclick="startGame(5)">5마리</button>
+            <button class="level-btn btn-10" onclick="startGame(10)">10마리</button>
+            <button class="level-btn btn-15" onclick="startGame(15)">15마리</button>
+        </div>
+    </div>
+
+    <div id="game-screen">
+        <div class="header">
+            <button class="back-btn" onclick="goBack()">🔙 처음으로 돌아가기</button>
+            <h2 style="color: #f57f17; margin: 0; font-size: 2em;" id="game-title">동물 퍼즐</h2>
+            <div style="width: 160px;"></div> </div>
+
+        <div class="instruction" style="font-size: 1.5em; font-weight: bold; color: #5d4037; margin-bottom: 20px;">
+            동물을 마우스로 끌어서 알맞은 그림자 위에 놓아주세요!
+        </div>
+
+        <div class="game-board">
+            <div class="pieces-container" id="pieces-container"></div>
+            <div class="slots-container" id="slots-container"></div>
+        </div>
+
+        <div id="celebration">🎉 참 잘했어요! 모두 찾았어요! 🎉</div>
+    </div>
+
+    <script>
+        const introScreen = document.getElementById('intro-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const piecesContainer = document.getElementById('pieces-container');
+        const slotsContainer = document.getElementById('slots-container');
+        const celebration = document.getElementById('celebration');
+        const gameTitle = document.getElementById('game-title');
+
+        // 총 15마리의 동물 데이터 준비
+        const allAnimals = [
+            { id: 'lion', emoji: '🦁' }, { id: 'monkey', emoji: '🐵' },
+            { id: 'pig', emoji: '🐷' }, { id: 'frog', emoji: '🐸' },
+            { id: 'panda', emoji: '🐼' }, { id: 'fox', emoji: '🦊' },
+            { id: 'tiger', emoji: '🐯' }, { id: 'rabbit', emoji: '🐰' },
+            { id: 'bear', emoji: '🐻' }, { id: 'koala', emoji: '🐨' },
+            { id: 'cow', emoji: '🐮' }, { id: 'mouse', emoji: '🐭' },
+            { id: 'hamster', emoji: '🐹' }, { id: 'chicken', emoji: '🐔' },
+            { id: 'penguin', emoji: '🐧' }
+        ];
+
+        let matchedCount = 0;
+        let totalPieces = 0;
+
+        function shuffle(array) {
+            return array.sort(() => Math.random() - 0.5);
+        }
+
+        // 처음 화면으로 돌아가기
+        function goBack() {
+            introScreen.style.display = 'block';
+            gameScreen.style.display = 'none';
+            celebration.style.display = 'none';
+        }
+
+        // 난이도(마리 수) 선택 시 게임 시작
+        function startGame(count) {
+            introScreen.style.display = 'none';
+            gameScreen.style.display = 'block';
+            celebration.style.display = 'none';
+            
+            matchedCount = 0;
+            totalPieces = count;
+            gameTitle.textContent = `${count}마리 찾기`;
+
+            piecesContainer.innerHTML = '';
+            slotsContainer.innerHTML = '';
+
+            // 15마리 중 선택된 개수만큼만 잘라서 사용 (매번 다른 동물이 나오도록 섞은 뒤 자름)
+            const currentAnimals = shuffle([...allAnimals]).slice(0, count);
+
+            // 1. 그림자 빈 칸(Slot) 생성 (순서 고정)
+            currentAnimals.forEach(animal => {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.dataset.id = animal.id; 
+
+                const shadow = document.createElement('div');
+                shadow.className = 'shadow-img';
+                shadow.textContent = animal.emoji;
+                slot.appendChild(shadow);
+
+                slot.addEventListener('dragover', (e) => e.preventDefault());
+
+                slot.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const draggedId = e.dataTransfer.getData('text/plain');
+                    
+                    if (draggedId === slot.dataset.id) {
+                        // 정답!
+                        const draggedElement = document.getElementById(draggedId);
+                        
+                        slot.innerHTML = ''; 
+                        slot.style.border = 'none';
+                        slot.style.backgroundColor = 'transparent';
+                        
+                        slot.appendChild(draggedElement);
+                        
+                        draggedElement.setAttribute('draggable', 'false');
+                        draggedElement.style.cursor = 'default';
+                        draggedElement.classList.add('matched');
+
+                        matchedCount++;
+                        
+                        if (matchedCount === totalPieces) {
+                            setTimeout(() => {
+                                celebration.style.display = 'block';
+                            }, 500);
+                        }
+                    } else {
+                        // 오답!
+                        slot.classList.add('shake');
+                        setTimeout(() => slot.classList.remove('shake'), 400);
+                    }
+                });
+
+                slotsContainer.appendChild(slot);
+            });
+
+            // 2. 드래그할 동물 조각 생성 (무작위 배치)
+            const shuffledPieces = shuffle([...currentAnimals]);
+            shuffledPieces.forEach(animal => {
+                const piece = document.createElement('div');
+                piece.className = 'animal-piece';
+                piece.textContent = animal.emoji;
+                piece.id = animal.id; 
+                piece.setAttribute('draggable', 'true');
+
+                piece.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', animal.id);
+                    setTimeout(() => piece.style.opacity = '0.5', 0);
+                });
+
+                piece.addEventListener('dragend', () => {
+                    piece.style.opacity = '1';
+                });
+
+                piecesContainer.appendChild(piece);
+            });
+        }
+    </script>
+</body>
+</html>
